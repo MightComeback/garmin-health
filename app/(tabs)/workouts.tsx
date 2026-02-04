@@ -1,6 +1,7 @@
-import { StyleSheet, FlatList, RefreshControl } from 'react-native';
+import { StyleSheet, FlatList, RefreshControl, TouchableOpacity, ScrollView } from 'react-native';
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'expo-router';
+import FontAwesome from '@expo/vector-icons/FontAwesome';
 
 import { Text, View } from '@/components/Themed';
 import { ActivityRow } from '@/components/ActivityRow';
@@ -15,6 +16,18 @@ type Activity = {
   durationSeconds: number;
   calories: number;
 };
+
+type ActivityFilter = 'all' | 'running' | 'cycling' | 'walking' | 'strength' | 'swimming' | 'other';
+
+const FILTER_OPTIONS: { key: ActivityFilter; label: string; icon: string }[] = [
+  { key: 'all', label: 'All', icon: 'list' },
+  { key: 'running', label: 'Run', icon: 'running' },
+  { key: 'cycling', label: 'Cycle', icon: 'bicycle' },
+  { key: 'walking', label: 'Walk', icon: 'walking' },
+  { key: 'strength', label: 'Strength', icon: 'dumbbell' },
+  { key: 'swimming', label: 'Swim', icon: 'swimmer' },
+  { key: 'other', label: 'Other', icon: 'heartbeat' },
+];
 
 function formatDuration(seconds: number): string {
   const hours = Math.floor(seconds / 3600);
@@ -61,6 +74,15 @@ export default function WorkoutsScreen() {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [activeFilter, setActiveFilter] = useState<ActivityFilter>('all');
+
+  const filteredActivities = activities.filter(act => {
+    if (activeFilter === 'all') return true;
+    if (activeFilter === 'other') {
+      return !['running', 'cycling', 'walking', 'strength', 'swimming'].includes(act.type.toLowerCase());
+    }
+    return act.type.toLowerCase() === activeFilter;
+  });
 
   const fetchActivities = useCallback(async () => {
     try {
@@ -103,8 +125,34 @@ export default function WorkoutsScreen() {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Workouts</Text>
-        <Text style={styles.subtitle}>{activities.length} activities</Text>
+        <Text style={styles.subtitle}>
+          {filteredActivities.length} of {activities.length} activities
+        </Text>
       </View>
+
+      <ScrollView 
+        horizontal 
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.filterBar}
+      >
+        {FILTER_OPTIONS.map(filter => (
+          <TouchableOpacity
+            key={filter.key}
+            style={[styles.filterChip, activeFilter === filter.key && styles.filterChipActive]}
+            onPress={() => setActiveFilter(filter.key)}
+          >
+            <FontAwesome 
+              name={filter.icon as any} 
+              size={12} 
+              color={activeFilter === filter.key ? '#fff' : '#007AFF'} 
+              style={styles.filterIcon}
+            />
+            <Text style={[styles.filterText, activeFilter === filter.key && styles.filterTextActive]}>
+              {filter.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
 
       {error && (
         <View style={styles.errorBox}>
@@ -113,7 +161,7 @@ export default function WorkoutsScreen() {
       )}
 
       <FlatList
-        data={activities}
+        data={filteredActivities}
         renderItem={renderItem}
         keyExtractor={(item) => item.id}
         refreshControl={
@@ -122,9 +170,13 @@ export default function WorkoutsScreen() {
         contentContainerStyle={styles.list}
         ListEmptyComponent={
           <View style={styles.emptyState}>
-            <Text style={styles.emptyText}>No activities yet</Text>
+            <Text style={styles.emptyText}>
+              {activities.length === 0 ? 'No activities yet' : 'No activities match this filter'}
+            </Text>
             <Text style={styles.emptySubtext}>
-              Sync with Garmin Connect to see your workouts here
+              {activities.length === 0 
+                ? 'Sync with Garmin Connect to see your workouts here'
+                : 'Try selecting a different filter or sync for more data'}
             </Text>
           </View>
         }
@@ -140,6 +192,7 @@ const styles = StyleSheet.create({
   header: {
     padding: 20,
     paddingTop: 60,
+    paddingBottom: 12,
   },
   title: {
     fontSize: 34,
@@ -149,6 +202,34 @@ const styles = StyleSheet.create({
     fontSize: 17,
     opacity: 0.6,
     marginTop: 4,
+  },
+  filterBar: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    gap: 8,
+  },
+  filterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#007AFF15',
+    marginRight: 8,
+  },
+  filterChipActive: {
+    backgroundColor: '#007AFF',
+  },
+  filterIcon: {
+    marginRight: 6,
+  },
+  filterText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#007AFF',
+  },
+  filterTextActive: {
+    color: '#fff',
   },
   list: {
     padding: 16,
