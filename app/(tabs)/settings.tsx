@@ -1,16 +1,22 @@
-import { StyleSheet, ScrollView, TextInput, TouchableOpacity } from 'react-native';
+import { StyleSheet, ScrollView, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 
 import { Text, View } from '@/components/Themed';
+import { clearSyncUrlCache } from '@/lib/syncConfig';
 
 const DEFAULT_SYNC_URL = 'http://127.0.0.1:17890';
 const SYNC_URL_KEY = '@garmin_sync_url';
 
+type ConnectionStatus = 'idle' | 'testing' | 'connected' | 'error';
+
 export default function SettingsScreen() {
   const [syncUrl, setSyncUrl] = useState(DEFAULT_SYNC_URL);
   const [saved, setSaved] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('idle');
+  const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [serviceInfo, setServiceInfo] = useState<{ garminConfigured: boolean; garminAuthenticated: boolean } | null>(null);
 
   useEffect(() => {
     loadSettings();
@@ -28,6 +34,7 @@ export default function SettingsScreen() {
   const saveSettings = async () => {
     try {
       await AsyncStorage.setItem(SYNC_URL_KEY, syncUrl);
+      clearSyncUrlCache();
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch (err) {
@@ -37,6 +44,47 @@ export default function SettingsScreen() {
 
   const resetToDefault = () => {
     setSyncUrl(DEFAULT_SYNC_URL);
+    setConnectionStatus('idle');
+    setConnectionError(null);
+    setServiceInfo(null);
+  };
+
+  const testConnection = async () => {
+    setConnectionStatus('testing');
+    setConnectionError(null);
+    setServiceInfo(null);
+
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      
+      const res = await fetch(`${syncUrl}/health`, {
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+
+      const data = await res.json();
+      setServiceInfo({
+        garminConfigured: data.garminConfigured,
+        garminAuthenticated: data.garminAuthenticated,
+      });
+      setConnectionStatus('connected');
+    } catch (err) {
+      setConnectionStatus('error');
+      if (err instanceof Error) {
+        if (err.name === 'AbortError') {
+          setConnectionError('Connection timed out after 5s');
+        } else {
+          setConnectionError(err.message);
+        }
+      } else {
+        setConnectionError('Unknown error');
+      }
+    }
   };
 
   return (
@@ -88,6 +136,50 @@ export default function SettingsScreen() {
             </Text>
           </TouchableOpacity>
         </View>
+
+        <TouchableOpacity 
+          style={[styles.testButton, connectionStatus === 'testing' && styles.testButtonDisabled]} 
+          onPress={testConnection}
+          disabled={connectionStatus === 'testing'}
+        >
+          {connectionStatus === 'testing' ? (
+            <ActivityIndicator size="small" color="#007AFF" />
+          ) : (
+            <FontAwesome 
+              name="plug" 
+              size={16} 
+              color="#007AFF" 
+              style={styles.buttonIcon}
+            />
+          )}
+          <Text style={styles.testButtonText}>
+            {connectionStatus === 'testing' ? 'Testing...' : 'Test Connection'}
+          </Text>
+        </TouchableOpacity>
+
+        {connectionStatus === 'connected' && serviceInfo && (
+          <View style={styles.statusBoxSuccess}>
+            <FontAwesome name="check-circle" size={16} color="#34C759" />
+            <View style={styles.statusTextContainer}>
+              <Text style={styles.statusTextSuccess}>Connected to sync service</Text>
+              <Text style={styles.statusSubtext}>
+                Garmin: {serviceInfo.garminAuthenticated ? '✓ Authenticated' : '⚠ Not authenticated'}
+              </Text>
+            </View>
+          </View>
+        )}
+
+        {connectionStatus === 'error' && (
+          <View style={styles.statusBoxError}>
+            <FontAwesome name="exclamation-circle" size={16} color="#FF3B30" />
+            <View style={styles.statusTextContainer}>
+              <Text style={styles.statusTextError}>Connection failed</Text>
+              {connectionError && (
+                <Text style={styles.statusSubtext}>{connectionError}</Text>
+              )}
+            </View>
+          </View>
+        )}
       </View>
 
       <View style={styles.section}>
@@ -233,5 +325,58 @@ const styles = StyleSheet.create({
     fontSize: 13,
     opacity: 0.7,
     lineHeight: 18,
+  },
+  testButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 12,
+    borderRadius: 8,
+    backgroundColor: '#007AFF10',
+    marginTop: 8,
+  },
+  testButtonDisabled: {
+    opacity: 0.6,
+  },
+  testButtonText: {
+    color: '#007AFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  statusBoxSuccess: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginTop: 12,
+    padding: 12,
+    backgroundColor: '#34C75915',
+    borderRadius: 8,
+    gap: 8,
+  },
+  statusBoxError: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginTop: 12,
+    padding: 12,
+    backgroundColor: '#FF3B3015',
+    borderRadius: 8,
+    gap: 8,
+  },
+  statusTextContainer: {
+    flex: 1,
+  },
+  statusTextSuccess: {
+    color: '#34C759',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  statusTextError: {
+    color: '#FF3B30',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  statusSubtext: {
+    fontSize: 13,
+    opacity: 0.6,
+    marginTop: 2,
   },
 });
