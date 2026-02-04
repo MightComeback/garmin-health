@@ -40,6 +40,9 @@ export default function TodayScreen() {
   const [metrics, setMetrics] = useState<DailyMetrics | null>(null);
   const [syncStatus, setSyncStatus] = useState<SyncStatusData | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<{ activities: number; days: number } | null>(null);
+  const [lastSyncTime, setLastSyncTime] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
@@ -58,6 +61,16 @@ export default function TodayScreen() {
       if (daily.items && daily.items.length > 0) {
         setMetrics(daily.items[0]);
       }
+
+      // Fetch last sync time from sync log
+      const syncLogRes = await fetch(`${SYNC_API_URL}/sync/status`);
+      const syncLog = await syncLogRes.json();
+      if (syncLog.recent && syncLog.recent.length > 0) {
+        const lastSync = syncLog.recent.find((s: { status: string }) => s.status === 'success');
+        if (lastSync) {
+          setLastSyncTime(lastSync.endedAt || lastSync.startedAt);
+        }
+      }
     } catch (err) {
       setError('Unable to connect to sync service');
       console.error('Fetch error:', err);
@@ -68,6 +81,30 @@ export default function TodayScreen() {
     setRefreshing(true);
     await fetchData();
     setRefreshing(false);
+  }, [fetchData]);
+
+  const handleSync = useCallback(async () => {
+    try {
+      setIsSyncing(true);
+      setError(null);
+      
+      const res = await fetch(`${SYNC_API_URL}/sync`, { method: 'POST' });
+      const data = await res.json();
+      
+      if (data.ok) {
+        setSyncResult(data.synced);
+        setLastSyncTime(new Date().toISOString());
+        // Refresh metrics after sync
+        await fetchData();
+      } else {
+        setError('Sync failed: ' + (data.error || 'Unknown error'));
+      }
+    } catch (err) {
+      setError('Sync failed: Unable to connect to sync service');
+      console.error('Sync error:', err);
+    } finally {
+      setIsSyncing(false);
+    }
   }, [fetchData]);
 
   useEffect(() => {
@@ -88,7 +125,18 @@ export default function TodayScreen() {
       <SyncStatus 
         configured={syncStatus?.garminConfigured ?? false}
         authenticated={syncStatus?.garminAuthenticated ?? false}
+        isSyncing={isSyncing}
+        onSync={handleSync}
+        lastSyncTime={lastSyncTime}
       />
+
+      {syncResult && (
+        <View style={styles.successBox}>
+          <Text style={styles.successText}>
+            Synced {syncResult.activities} activities, {syncResult.days} days
+          </Text>
+        </View>
+      )}
 
       {error && (
         <View style={styles.errorBox}>
@@ -172,6 +220,16 @@ const styles = StyleSheet.create({
   },
   errorText: {
     color: '#FF3B30',
+    textAlign: 'center',
+  },
+  successBox: {
+    margin: 16,
+    padding: 12,
+    backgroundColor: '#34C75920',
+    borderRadius: 8,
+  },
+  successText: {
+    color: '#34C759',
     textAlign: 'center',
   },
   hintBox: {

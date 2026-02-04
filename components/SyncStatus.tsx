@@ -1,4 +1,4 @@
-import { StyleSheet } from 'react-native';
+import { StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 
 import { Text, View } from './Themed';
@@ -6,9 +6,18 @@ import { Text, View } from './Themed';
 interface SyncStatusProps {
   configured: boolean;
   authenticated: boolean;
+  isSyncing?: boolean;
+  onSync?: () => void;
+  lastSyncTime?: string | null;
 }
 
-export function SyncStatus({ configured, authenticated }: SyncStatusProps) {
+export function SyncStatus({ 
+  configured, 
+  authenticated, 
+  isSyncing = false,
+  onSync,
+  lastSyncTime 
+}: SyncStatusProps) {
   if (!configured) {
     return (
       <View style={[styles.container, styles.warning]}>
@@ -37,6 +46,27 @@ export function SyncStatus({ configured, authenticated }: SyncStatusProps) {
       <Text style={[styles.text, styles.successText]}>
         Connected to Garmin Connect
       </Text>
+      {lastSyncTime && (
+        <Text style={styles.lastSyncText}>
+          Last sync: {new Date(lastSyncTime).toLocaleTimeString()}
+        </Text>
+      )}
+      {onSync && (
+        <TouchableOpacity 
+          style={[styles.syncButton, isSyncing && styles.syncButtonDisabled]} 
+          onPress={onSync}
+          disabled={isSyncing}
+        >
+          {isSyncing ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <>
+              <FontAwesome name="refresh" size={12} color="#fff" />
+              <Text style={styles.syncButtonText}>Sync Now</Text>
+            </>
+          )}
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
@@ -49,6 +79,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     padding: 12,
     borderRadius: 8,
+    flexWrap: 'wrap',
   },
   success: {
     backgroundColor: '#34C75915',
@@ -66,5 +97,28 @@ const styles = StyleSheet.create({
   },
   warningText: {
     color: '#FF9500',
+  },
+  lastSyncText: {
+    marginLeft: 'auto',
+    fontSize: 12,
+    opacity: 0.6,
+  },
+  syncButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#007AFF',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    marginLeft: 'auto',
+    gap: 6,
+  },
+  syncButtonDisabled: {
+    opacity: 0.6,
+  },
+  syncButtonText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
   },
 });
