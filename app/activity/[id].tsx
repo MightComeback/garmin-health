@@ -70,27 +70,26 @@ export default function ActivityDetailScreen() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    const fetchActivity = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const syncUrl = await getSyncUrl();
+        const res = await fetch(`${syncUrl}/activities/${id}`);
+        if (!res.ok) {
+          throw new Error('Activity not found');
+        }
+        const data = await res.json();
+        setActivity(data);
+      } catch (err) {
+        setError('Failed to load activity details');
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
     fetchActivity();
   }, [id]);
-
-  const fetchActivity = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const syncUrl = await getSyncUrl();
-      const res = await fetch(`${syncUrl}/activities/${id}`);
-      if (!res.ok) {
-        throw new Error('Activity not found');
-      }
-      const data = await res.json();
-      setActivity(data);
-    } catch (err) {
-      setError('Failed to load activity details');
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   if (loading) {
     return (

@@ -1,12 +1,10 @@
-import { StyleSheet, ScrollView, RefreshControl, Dimensions, TouchableOpacity } from 'react-native';
+import { StyleSheet, ScrollView, RefreshControl, TouchableOpacity } from 'react-native';
 import { useState, useEffect, useCallback } from 'react';
-import FontAwesome from '@expo/vector-icons/FontAwesome';
 
 import { Text, View } from '@/components/Themed';
 import { TrendChart } from '@/components/TrendChart';
 import { StatSummary } from '@/components/StatSummary';
 import { getSyncUrl } from '@/lib/syncConfig';
-const { width } = Dimensions.get('window');
 
 type DailyMetrics = {
   day: string;
