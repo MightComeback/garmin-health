@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Text, View } from '@/components/Themed';
 import { MetricCard } from '@/components/MetricCard';
 import { SyncStatus } from '@/components/SyncStatus';
+import { WeeklySummary } from '@/components/WeeklySummary';
 import { getSyncUrl } from '@/lib/syncConfig';
 
 type DailyMetrics = {
@@ -35,8 +36,15 @@ function formatSteps(steps: number): string {
   return String(steps);
 }
 
+type WeeklyMetrics = {
+  steps: number[];
+  sleepSeconds: (number | null)[];
+  restingHRs: (number | null)[];
+};
+
 export default function TodayScreen() {
   const [metrics, setMetrics] = useState<DailyMetrics | null>(null);
+  const [weeklyMetrics, setWeeklyMetrics] = useState<WeeklyMetrics>({ steps: [], sleepSeconds: [], restingHRs: [] });
   const [syncStatus, setSyncStatus] = useState<SyncStatusData | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -54,12 +62,20 @@ export default function TodayScreen() {
       const status = await statusRes.json();
       setSyncStatus(status);
 
-      // Fetch today's metrics
+      // Fetch daily metrics for today and weekly summary
       const dailyRes = await fetch(`${syncUrl}/daily`);
       const daily = await dailyRes.json();
       
       if (daily.items && daily.items.length > 0) {
         setMetrics(daily.items[0]);
+        
+        // Calculate weekly metrics from last 7 days
+        const last7Days = daily.items.slice(0, 7);
+        setWeeklyMetrics({
+          steps: last7Days.map((d: DailyMetrics) => d.steps || 0),
+          sleepSeconds: last7Days.map((d: DailyMetrics) => d.sleepSeconds),
+          restingHRs: last7Days.map((d: DailyMetrics) => d.restingHeartRate),
+        });
       }
 
       // Fetch last sync time from sync log
@@ -122,6 +138,12 @@ export default function TodayScreen() {
         <Text style={styles.title}>Today</Text>
         <Text style={styles.date}>{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</Text>
       </View>
+
+      <WeeklySummary
+        steps={weeklyMetrics.steps}
+        sleepSeconds={weeklyMetrics.sleepSeconds}
+        restingHRs={weeklyMetrics.restingHRs}
+      />
 
       <SyncStatus 
         configured={syncStatus?.garminConfigured ?? false}
