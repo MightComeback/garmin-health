@@ -1,5 +1,6 @@
-import { StyleSheet, ScrollView, RefreshControl, Dimensions } from 'react-native';
+import { StyleSheet, ScrollView, RefreshControl, Dimensions, TouchableOpacity } from 'react-native';
 import { useState, useEffect, useCallback } from 'react';
+import FontAwesome from '@expo/vector-icons/FontAwesome';
 
 import { Text, View } from '@/components/Themed';
 import { TrendChart } from '@/components/TrendChart';
@@ -16,8 +17,17 @@ type DailyMetrics = {
   hrvStatus: string | null;
 };
 
+type TimeRange = 7 | 30 | 90;
+
+const TIME_RANGE_OPTIONS: { value: TimeRange; label: string }[] = [
+  { value: 7, label: '7D' },
+  { value: 30, label: '30D' },
+  { value: 90, label: '90D' },
+];
+
 export default function TrendsScreen() {
   const [metrics, setMetrics] = useState<DailyMetrics[]>([]);
+  const [timeRange, setTimeRange] = useState<TimeRange>(30);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -27,13 +37,14 @@ export default function TrendsScreen() {
       const syncUrl = await getSyncUrl();
       const res = await fetch(`${syncUrl}/daily`);
       const data = await res.json();
-      // Reverse to get chronological order
-      setMetrics((data.items || []).slice().reverse());
+      // Reverse to get chronological order, then take last N days based on timeRange
+      const allMetrics = (data.items || []).slice().reverse();
+      setMetrics(allMetrics.slice(-timeRange));
     } catch (err) {
       setError('Unable to load trend data');
       console.error('Fetch error:', err);
     }
-  }, []);
+  }, [timeRange]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -72,6 +83,28 @@ export default function TrendsScreen() {
       <View style={styles.header}>
         <Text style={styles.title}>Trends</Text>
         <Text style={styles.subtitle}>Last {metrics.length} days</Text>
+      </View>
+
+      <View style={styles.timeRangeContainer}>
+        {TIME_RANGE_OPTIONS.map((option) => (
+          <TouchableOpacity
+            key={option.value}
+            style={[
+              styles.timeRangeButton,
+              timeRange === option.value && styles.timeRangeButtonActive,
+            ]}
+            onPress={() => setTimeRange(option.value)}
+          >
+            <Text
+              style={[
+                styles.timeRangeText,
+                timeRange === option.value && styles.timeRangeTextActive,
+              ]}
+            >
+              {option.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
       {error && (
@@ -144,6 +177,7 @@ const styles = StyleSheet.create({
   header: {
     padding: 20,
     paddingTop: 60,
+    paddingBottom: 8,
   },
   title: {
     fontSize: 34,
@@ -187,5 +221,30 @@ const styles = StyleSheet.create({
     opacity: 0.4,
     marginTop: 8,
     textAlign: 'center',
+  },
+  timeRangeContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    gap: 8,
+  },
+  timeRangeButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 16,
+    backgroundColor: '#00000008',
+    minWidth: 50,
+    alignItems: 'center',
+  },
+  timeRangeButtonActive: {
+    backgroundColor: '#007AFF',
+  },
+  timeRangeText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#007AFF',
+  },
+  timeRangeTextActive: {
+    color: '#fff',
   },
 });
