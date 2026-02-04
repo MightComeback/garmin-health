@@ -146,7 +146,7 @@ export default function TodayScreen() {
 
       <View style={styles.metricsGrid}>
         <MetricCard
-          icon="shoe-prints"
+          icon="blind"
           label="Steps"
           value={metrics?.steps ? formatSteps(metrics.steps) : '--'}
           subtitle="Daily goal: 10k"
@@ -160,7 +160,7 @@ export default function TodayScreen() {
           color="#5856D6"
         />
         <MetricCard
-          icon="heart"
+          icon="heartbeat"
           label="Resting HR"
           value={metrics?.restingHeartRate ? `${metrics.restingHeartRate} bpm` : '--'}
           subtitle="Heart rate"
@@ -174,7 +174,7 @@ export default function TodayScreen() {
           color="#34C759"
         />
         <MetricCard
-          icon="wave-square"
+          icon="heart"
           label="HRV Status"
           value={metrics?.hrvStatus || '--'}
           subtitle="Recovery"
