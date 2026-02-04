@@ -1,18 +1,20 @@
-import { StyleSheet, ViewProps } from 'react-native';
+import { StyleSheet, ViewStyle, TouchableOpacity, View } from 'react-native';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 
-import { Text, View } from './Themed';
+import { Text } from './Themed';
 
-interface ActivityRowProps extends ViewProps {
+interface ActivityRowProps {
   icon: string;
   title: string;
   subtitle: string;
   stats: { label: string; value: string }[];
+  onPress?: () => void;
+  style?: ViewStyle;
 }
 
-export function ActivityRow({ icon, title, subtitle, stats, style, ...rest }: ActivityRowProps) {
-  return (
-    <View style={[styles.container, style]} {...rest}>
+export function ActivityRow({ icon, title, subtitle, stats, onPress, style }: ActivityRowProps) {
+  const content = (
+    <>
       <View style={styles.iconContainer}>
         <FontAwesome name={icon as any} size={20} color="#007AFF" />
       </View>
@@ -30,6 +32,20 @@ export function ActivityRow({ icon, title, subtitle, stats, style, ...rest }: Ac
           ))}
         </View>
       </View>
+    </>
+  );
+
+  if (onPress) {
+    return (
+      <TouchableOpacity activeOpacity={0.7} onPress={onPress} style={[styles.container, style]}>
+        {content}
+      </TouchableOpacity>
+    );
+  }
+
+  return (
+    <View style={[styles.container, style]}>
+      {content}
     </View>
   );
 }

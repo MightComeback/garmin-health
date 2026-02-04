@@ -1,5 +1,6 @@
 import { StyleSheet, FlatList, RefreshControl } from 'react-native';
 import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'expo-router';
 
 import { Text, View } from '@/components/Themed';
 import { ActivityRow } from '@/components/ActivityRow';
@@ -57,6 +58,7 @@ function getActivityIcon(type: string): string {
 }
 
 export default function WorkoutsScreen() {
+  const router = useRouter();
   const [activities, setActivities] = useState<Activity[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -93,6 +95,7 @@ export default function WorkoutsScreen() {
         { label: 'Distance', value: formatDistance(item.distanceMeters) },
         { label: 'Calories', value: `${Math.round(item.calories)}` },
       ]}
+      onPress={() => router.push(`/activity/${item.id}`)}
     />
   );
 
