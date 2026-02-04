@@ -4,8 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Text, View } from '@/components/Themed';
 import { MetricCard } from '@/components/MetricCard';
 import { SyncStatus } from '@/components/SyncStatus';
-
-const SYNC_API_URL = 'http://127.0.0.1:17890';
+import { getSyncUrl } from '@/lib/syncConfig';
 
 type DailyMetrics = {
   day: string;
@@ -48,14 +47,15 @@ export default function TodayScreen() {
   const fetchData = useCallback(async () => {
     try {
       setError(null);
+      const syncUrl = await getSyncUrl();
       
       // Fetch sync status
-      const statusRes = await fetch(`${SYNC_API_URL}/health`);
+      const statusRes = await fetch(`${syncUrl}/health`);
       const status = await statusRes.json();
       setSyncStatus(status);
 
       // Fetch today's metrics
-      const dailyRes = await fetch(`${SYNC_API_URL}/daily`);
+      const dailyRes = await fetch(`${syncUrl}/daily`);
       const daily = await dailyRes.json();
       
       if (daily.items && daily.items.length > 0) {
@@ -63,7 +63,7 @@ export default function TodayScreen() {
       }
 
       // Fetch last sync time from sync log
-      const syncLogRes = await fetch(`${SYNC_API_URL}/sync/status`);
+      const syncLogRes = await fetch(`${syncUrl}/sync/status`);
       const syncLog = await syncLogRes.json();
       if (syncLog.recent && syncLog.recent.length > 0) {
         const lastSync = syncLog.recent.find((s: { status: string }) => s.status === 'success');
@@ -87,8 +87,9 @@ export default function TodayScreen() {
     try {
       setIsSyncing(true);
       setError(null);
+      const syncUrl = await getSyncUrl();
       
-      const res = await fetch(`${SYNC_API_URL}/sync`, { method: 'POST' });
+      const res = await fetch(`${syncUrl}/sync`, { method: 'POST' });
       const data = await res.json();
       
       if (data.ok) {

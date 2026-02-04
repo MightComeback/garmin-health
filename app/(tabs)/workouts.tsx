@@ -4,8 +4,7 @@ import { useRouter } from 'expo-router';
 
 import { Text, View } from '@/components/Themed';
 import { ActivityRow } from '@/components/ActivityRow';
-
-const SYNC_API_URL = 'http://127.0.0.1:17890';
+import { getSyncUrl } from '@/lib/syncConfig';
 
 type Activity = {
   id: string;
@@ -66,7 +65,8 @@ export default function WorkoutsScreen() {
   const fetchActivities = useCallback(async () => {
     try {
       setError(null);
-      const res = await fetch(`${SYNC_API_URL}/activities`);
+      const syncUrl = await getSyncUrl();
+      const res = await fetch(`${syncUrl}/activities`);
       const data = await res.json();
       setActivities(data.items || []);
     } catch (err) {

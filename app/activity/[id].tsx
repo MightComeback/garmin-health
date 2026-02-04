@@ -4,8 +4,7 @@ import { useLocalSearchParams, Stack } from 'expo-router';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 
 import { Text, View } from '@/components/Themed';
-
-const SYNC_API_URL = 'http://127.0.0.1:17890';
+import { getSyncUrl } from '@/lib/syncConfig';
 
 type ActivityDetail = {
   id: string;
@@ -78,7 +77,8 @@ export default function ActivityDetailScreen() {
     try {
       setLoading(true);
       setError(null);
-      const res = await fetch(`${SYNC_API_URL}/activities/${id}`);
+      const syncUrl = await getSyncUrl();
+      const res = await fetch(`${syncUrl}/activities/${id}`);
       if (!res.ok) {
         throw new Error('Activity not found');
       }

@@ -4,8 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Text, View } from '@/components/Themed';
 import { TrendChart } from '@/components/TrendChart';
 import { StatSummary } from '@/components/StatSummary';
-
-const SYNC_API_URL = 'http://127.0.0.1:17890';
+import { getSyncUrl } from '@/lib/syncConfig';
 const { width } = Dimensions.get('window');
 
 type DailyMetrics = {
@@ -25,7 +24,8 @@ export default function TrendsScreen() {
   const fetchData = useCallback(async () => {
     try {
       setError(null);
-      const res = await fetch(`${SYNC_API_URL}/daily`);
+      const syncUrl = await getSyncUrl();
+      const res = await fetch(`${syncUrl}/daily`);
       const data = await res.json();
       // Reverse to get chronological order
       setMetrics((data.items || []).slice().reverse());
