@@ -1,168 +1,132 @@
-import { StyleSheet, ScrollView, RefreshControl, TouchableOpacity } from 'react-native';
+import { StyleSheet, ScrollView, RefreshControl, View } from 'react-native';
 import { useState, useEffect, useCallback } from 'react';
-
-import { Text, View } from '@/components/Themed';
-import { TrendChart } from '@/components/TrendChart';
-import { StatSummary } from '@/components/StatSummary';
+import { Text } from '@/components/Themed';
+import { SkeletonList } from '@/components/Skeleton';
 import { getSyncUrl } from '@/lib/syncConfig';
 
-type DailyMetrics = {
-  day: string;
-  steps: number;
-  restingHeartRate: number | null;
-  bodyBattery: number | null;
-  sleepSeconds: number | null;
-  hrvStatus: string | null;
+type TrendsData = {
+  period: number;
+  latest: any;
+  trend: {
+    hrv?: number;
+    stress?: number;
+    bodyBattery: number[];
+    sleep: Array<{
+      day: string;
+      score: number | null;
+      duration: number | null;
+      deepRatio: number | null;
+      quality: string;
+    }>;
+    avgSteps: number;
+  } | null;
+  recent: Array<any>;
 };
 
-type TimeRange = 7 | 30 | 90;
-
-const TIME_RANGE_OPTIONS: { value: TimeRange; label: string }[] = [
-  { value: 7, label: '7D' },
-  { value: 30, label: '30D' },
-  { value: 90, label: '90D' },
-];
-
 export default function TrendsScreen() {
-  const [metrics, setMetrics] = useState<DailyMetrics[]>([]);
-  const [timeRange, setTimeRange] = useState<TimeRange>(30);
+  const [trends, setTrends] = useState&lt;TrendsData | null&gt;(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState&lt;string | null&gt;(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const fetchData = useCallback(async () => {
+  const fetchTrends = useCallback(async () =&gt; {
+    setIsLoading(true);
+    setError(null);
     try {
-      setError(null);
       const syncUrl = await getSyncUrl();
-      const res = await fetch(`${syncUrl}/daily?days=${timeRange}`);
+      const res = await fetch(`${syncUrl}/trends?days=30`);
       const data = await res.json();
-      setMetrics((data.items || []).slice().reverse());
+      setTrends(data);
     } catch (err) {
-      setError('Unable to load trend data');
+      setError('Unable to load trends');
       console.error('Fetch error:', err);
+    } finally {
+      setIsLoading(false);
     }
-  }, [timeRange]);
+  }, []);
 
-  const onRefresh = useCallback(async () => {
+  const onRefresh = useCallback(async () =&gt; {
     setRefreshing(true);
-    await fetchData();
+    await fetchTrends();
     setRefreshing(false);
-  }, [fetchData]);
+  }, [fetchTrends]);
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+  useEffect(() =&gt; {
+    fetchTrends();
+  }, [fetchTrends]);
 
-  // Calculate averages
-  const avgSteps = metrics.length > 0 
-    ? Math.round(metrics.reduce((sum, m) => sum + m.steps, 0) / metrics.length)
-    : 0;
-  
-  const avgSleep = metrics.length > 0
-    ? Math.round(metrics.reduce((sum, m) => sum + (m.sleepSeconds || 0), 0) / metrics.length / 60)
-    : 0;
-  
-  const avgRHR = metrics.filter(m => m.restingHeartRate).length > 0
-    ? Math.round(metrics.filter(m => m.restingHeartRate).reduce((sum, m) => sum + (m.restingHeartRate || 0), 0) / metrics.filter(m => m.restingHeartRate).length)
-    : 0;
-
-  // Prepare chart data
-  const stepsData = metrics.map(m => ({ day: m.day.slice(5), value: m.steps }));
-  const sleepData = metrics.map(m => ({ day: m.day.slice(5), value: Math.round((m.sleepSeconds || 0) / 3600 * 10) / 10 }));
-  const rhrData = metrics.filter(m => m.restingHeartRate).map(m => ({ day: m.day.slice(5), value: m.restingHeartRate || 0 }));
+  if (isLoading) {
+    return &lt;ScrollView refreshControl={&lt;RefreshControl refreshing={refreshing} onRefresh={onRefresh} /&gt;}&gt;
+      &lt;SkeletonList count={6} /&gt;
+    &lt;/ScrollView&gt;;
+  }
 
   return (
-    <ScrollView 
+    &lt;ScrollView
       style={styles.container}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-      }>
-      <View style={styles.header}>
-        <Text style={styles.title}>Trends</Text>
-        <Text style={styles.subtitle}>Last {metrics.length} days</Text>
-      </View>
+      refreshControl={&lt;RefreshControl refreshing={refreshing} onRefresh={onRefresh} /&gt;}
+    &gt;
+      &lt;View style={styles.header}&gt;
+        &lt;Text style={styles.title}&gt;Trends&lt;/Text&gt;
+        &lt;Text style={styles.subtitle}&gt;30-Day Health Overview&lt;/Text&gt;
+      &lt;/View&gt;
 
-      <View style={styles.timeRangeContainer}>
-        {TIME_RANGE_OPTIONS.map((option) => (
-          <TouchableOpacity
-            key={option.value}
-            style={[
-              styles.timeRangeButton,
-              timeRange === option.value && styles.timeRangeButtonActive,
-            ]}
-            onPress={() => setTimeRange(option.value)}
-          >
-            <Text
-              style={[
-                styles.timeRangeText,
-                timeRange === option.value && styles.timeRangeTextActive,
-              ]}
-            >
-              {option.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {error && (
-        <View style={styles.errorBox}>
-          <Text style={styles.errorText}>{error}</Text>
-        </View>
+      {error &amp;&amp; (
+        &lt;View style={styles.errorBox}&gt;
+          &lt;Text style={styles.errorText}&gt;{error}&lt;/Text&gt;
+        &lt;/View&gt;
       )}
 
-      <View style={styles.summaryRow}>
-        <StatSummary
-          label="Avg Steps"
-          value={avgSteps.toLocaleString()}
-          change="+5%"
-          positive
-        />
-        <StatSummary
-          label="Avg Sleep"
-          value={`${Math.floor(avgSleep / 60)}h ${avgSleep % 60}m`}
-          change="-2%"
-          positive={false}
-        />
-        <StatSummary
-          label="Avg RHR"
-          value={`${avgRHR} bpm`}
-          change="-3 bpm"
-          positive
-        />
-      </View>
+      {trends?.trend &amp;&amp; (
+        &lt;&gt;
+          &lt;View style={styles.section}&gt;
+            &lt;Text style={styles.sectionTitle}&gt;Average Steps&lt;/Text&gt;
+            &lt;Text style={styles.metricValue}&gt;
+              {Math.round(trends.trend.avgSteps).toLocaleString()}
+            &lt;/Text&gt;
+          &lt;/View&gt;
 
-      {metrics.length > 0 ? (
-        <View style={styles.chartsContainer}>
-          <TrendChart
-            title="Steps"
-            data={stepsData}
-            color="#007AFF"
-            unit=""
-            goal={10000}
-          />
-          <TrendChart
-            title="Sleep (hours)"
-            data={sleepData}
-            color="#5856D6"
-            unit="h"
-          />
-          {rhrData.length > 0 && (
-            <TrendChart
-              title="Resting Heart Rate"
-              data={rhrData}
-              color="#FF3B30"
-              unit=" bpm"
-            />
-          )}
-        </View>
-      ) : (
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyText}>No trend data yet</Text>
-          <Text style={styles.emptySubtext}>
-            Sync with Garmin Connect to see your trends
-          </Text>
-        </View>
+          &lt;View style={styles.section}&gt;
+            &lt;Text style={styles.sectionTitle}&gt;Average Stress&lt;/Text&gt;
+            &lt;Text style={styles.metricValue}&gt;
+              {trends.trend.stress?.toFixed(1) || '--'}
+            &lt;/Text&gt;
+          &lt;/View&gt;
+
+          &lt;View style={styles.section}&gt;
+            &lt;Text style={styles.sectionTitle}&gt;Sleep Quality (Avg)&lt;/Text&gt;
+            &lt;Text style={styles.metricValue}&gt;
+              {trends.trend.sleep
+                ?.reduce((sum, s) =&gt; sum + (s.quality === 'excellent' ? 4 : s.quality === 'good' ? 3 : s.quality === 'fair' ? 2 : 1), 0) /
+                trends.trend.sleep.length || 0 | 0}
+              /4
+            &lt;/Text&gt;
+          &lt;/View&gt;
+
+          &lt;View style={styles.recentList}&gt;
+            &lt;Text style={styles.sectionTitle}&gt;Recent Days&lt;/Text&gt;
+            {trends.recent.slice(0, 7).map((day, i) =&gt; (
+              &lt;View key={i} style={styles.dayRow}&gt;
+                &lt;Text style={styles.dayLabel}&gt;{day.day.slice(5)}&lt;/Text&gt;
+                &lt;Text style={styles.daySteps}&gt;
+                  {day.steps?.toLocaleString() || '--'} steps
+                &lt;/Text&gt;
+                &lt;Text style={styles.dayBattery}&gt;
+                  {day.bodyBattery || '--'}%
+                &lt;/Text&gt;
+              &lt;/View&gt;
+            ))}
+          &lt;/View&gt;
+        &lt;/&gt;
       )}
-    </ScrollView>
+
+      {(!trends || !trends.trend) &amp;&amp; !error &amp;&amp; (
+        &lt;View style={styles.emptyState}&gt;
+          &lt;Text style={styles.emptyText}&gt;No trends data yet&lt;/Text&gt;
+          &lt;Text style={styles.emptySubtext}&gt;Sync more days to see trends&lt;/Text&gt;
+        &lt;/View&gt;
+      )}
+    &lt;/ScrollView&gt;
   );
 }
 
@@ -173,7 +137,6 @@ const styles = StyleSheet.create({
   header: {
     padding: 20,
     paddingTop: 60,
-    paddingBottom: 8,
   },
   title: {
     fontSize: 34,
@@ -184,14 +147,58 @@ const styles = StyleSheet.create({
     opacity: 0.6,
     marginTop: 4,
   },
-  summaryRow: {
-    flexDirection: 'row',
-    padding: 16,
-    gap: 12,
+  section: {
+    padding: 20,
+    margin: 16,
+    backgroundColor: 'white',
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
   },
-  chartsContainer: {
+  sectionTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    opacity: 0.7,
+    marginBottom: 8,
+  },
+  metricValue: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: '#007AFF',
+  },
+  recentList: {
     padding: 16,
-    gap: 20,
+    margin: 16,
+    backgroundColor: 'white',
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  dayRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  dayLabel: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  daySteps: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#007AFF',
+  },
+  dayBattery: {
+    fontSize: 16,
+    textAlign: 'right',
   },
   errorBox: {
     margin: 16,
@@ -204,8 +211,10 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   emptyState: {
-    padding: 60,
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
+    padding: 40,
   },
   emptyText: {
     fontSize: 18,
@@ -217,30 +226,5 @@ const styles = StyleSheet.create({
     opacity: 0.4,
     marginTop: 8,
     textAlign: 'center',
-  },
-  timeRangeContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    gap: 8,
-  },
-  timeRangeButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 16,
-    backgroundColor: '#00000008',
-    minWidth: 50,
-    alignItems: 'center',
-  },
-  timeRangeButtonActive: {
-    backgroundColor: '#007AFF',
-  },
-  timeRangeText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#007AFF',
-  },
-  timeRangeTextActive: {
-    color: '#fff',
   },
 });
