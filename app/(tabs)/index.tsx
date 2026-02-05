@@ -5,6 +5,7 @@ import { Text, View } from '@/components/Themed';
 import { MetricCard } from '@/components/MetricCard';
 import { SyncStatus } from '@/components/SyncStatus';
 import { WeeklySummary } from '@/components/WeeklySummary';
+import { Skeleton, SkeletonList } from '@/components/Skeleton';
 import { getSyncUrl } from '@/lib/syncConfig';
 
 type DailyMetrics = {
@@ -51,12 +52,20 @@ export default function TodayScreen() {
   const [syncResult, setSyncResult] = useState<{ activities: number; days: number } | null>(null);
   const [lastSyncTime, setLastSyncTime] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (isRefresh = false) => {
+    if (isRefresh) {
+      setIsRefreshing(true);
+    } else {
+      setIsLoading(true);
+    }
+    setError(null);
     try {
-      setError(null);
       const syncUrl = await getSyncUrl();
-      
+
       // Fetch sync status
       const statusRes = await fetch(`${syncUrl}/health`);
       const status = await statusRes.json();
@@ -65,10 +74,10 @@ export default function TodayScreen() {
       // Fetch daily metrics for today and weekly summary
       const dailyRes = await fetch(`${syncUrl}/daily`);
       const daily = await dailyRes.json();
-      
+
       if (daily.items && daily.items.length > 0) {
         setMetrics(daily.items[0]);
-        
+
         // Calculate weekly metrics from last 7 days
         const last7Days = daily.items.slice(0, 7);
         setWeeklyMetrics({
@@ -90,29 +99,32 @@ export default function TodayScreen() {
     } catch (err) {
       setError('Unable to connect to sync service');
       console.error('Fetch error:', err);
+    } finally {
+      setIsRefreshing(false);
+      setIsLoading(false);
+      setIsInitialLoad(false);
     }
   }, []);
 
   const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await fetchData();
-    setRefreshing(false);
+    await fetchData(true);
   }, [fetchData]);
 
   const handleSync = useCallback(async () => {
     try {
       setIsSyncing(true);
       setError(null);
+      setIsLoading(true);
       const syncUrl = await getSyncUrl();
-      
+
       const res = await fetch(`${syncUrl}/sync`, { method: 'POST' });
       const data = await res.json();
-      
+
       if (data.ok) {
         setSyncResult(data.synced);
         setLastSyncTime(new Date().toISOString());
         // Refresh metrics after sync
-        await fetchData();
+        await fetchData(true);
       } else {
         setError('Sync failed: ' + (data.error || 'Unknown error'));
       }
@@ -121,6 +133,7 @@ export default function TodayScreen() {
       console.error('Sync error:', err);
     } finally {
       setIsSyncing(false);
+      setIsLoading(false);
     }
   }, [fetchData]);
 
@@ -128,88 +141,98 @@ export default function TodayScreen() {
     fetchData();
   }, [fetchData]);
 
+  const isSkeletonLoading = isInitialLoad || isLoading;
+
   return (
-    <ScrollView 
+    <ScrollView
       style={styles.container}
       refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} />
       }>
       <View style={styles.header}>
         <Text style={styles.title}>Today</Text>
         <Text style={styles.date}>{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</Text>
       </View>
 
-      <WeeklySummary
-        steps={weeklyMetrics.steps}
-        sleepSeconds={weeklyMetrics.sleepSeconds}
-        restingHRs={weeklyMetrics.restingHRs}
-      />
+      {isSkeletonLoading ? (
+        <SkeletonList count={4} />
+      ) : (
+        <>
+          <WeeklySummary
+            steps={weeklyMetrics.steps}
+            sleepSeconds={weeklyMetrics.sleepSeconds}
+            restingHRs={weeklyMetrics.restingHRs}
+          />
 
-      <SyncStatus 
-        configured={syncStatus?.garminConfigured ?? false}
-        authenticated={syncStatus?.garminAuthenticated ?? false}
-        isSyncing={isSyncing}
-        onSync={handleSync}
-        lastSyncTime={lastSyncTime}
-      />
+          <SyncStatus
+            configured={syncStatus?.garminConfigured ?? false}
+            authenticated={syncStatus?.garminAuthenticated ?? false}
+            isSyncing={isSyncing}
+            onSync={handleSync}
+            lastSyncTime={lastSyncTime}
+          />
 
-      {syncResult && (
-        <View style={styles.successBox}>
-          <Text style={styles.successText}>
-            Synced {syncResult.activities} activities, {syncResult.days} days
+          {syncResult && (
+            <View style={styles.successBox}>
+              <Text style={styles.successText}>
+                Synced {syncResult.activities} activities, {syncResult.days} days
+              </Text>
+            </View>
+          )}
+
+          {error && (
+            <View style={styles.errorBox}>
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+          )}
+
+          <View style={styles.metricsGrid}>
+            <MetricCard
+              icon="blind"
+              label="Steps"
+              value={metrics?.steps ? formatSteps(metrics.steps) : '--'}
+              subtitle="Daily goal: 10k"
+              color="#007AFF"
+            />
+            <MetricCard
+              icon="bed"
+              label="Sleep"
+              value={formatDuration(metrics?.sleepSeconds ?? null)}
+              subtitle="Last night"
+              color="#5856D6"
+            />
+            <MetricCard
+              icon="heartbeat"
+              label="Resting HR"
+              value={metrics?.restingHeartRate ? `${metrics.restingHeartRate} bpm` : '--'}
+              subtitle="Heart rate"
+              color="#FF3B30"
+            />
+            <MetricCard
+              icon="battery-full"
+              label="Body Battery"
+              value={metrics?.bodyBattery ? `${metrics.bodyBattery}%` : '--'}
+              subtitle="Energy level"
+              color="#34C759"
+            />
+            <MetricCard
+              icon="heart"
+              label="HRV Status"
+              value={metrics?.hrvStatus || '--'}
+              subtitle="Recovery"
+              color="#FF9500"
+            />
+          </View>
+        </>
+      )}
+
+      {!isSkeletonLoading && (
+        <View style={styles.hintBox}>
+          <Text style={styles.hintText}>
+            Pull down to refresh. Tap the sync button when connected to sync service.
           </Text>
         </View>
       )}
-
-      {error && (
-        <View style={styles.errorBox}>
-          <Text style={styles.errorText}>{error}</Text>
-        </View>
-      )}
-
-      <View style={styles.metricsGrid}>
-        <MetricCard
-          icon="blind"
-          label="Steps"
-          value={metrics?.steps ? formatSteps(metrics.steps) : '--'}
-          subtitle="Daily goal: 10k"
-          color="#007AFF"
-        />
-        <MetricCard
-          icon="bed"
-          label="Sleep"
-          value={formatDuration(metrics?.sleepSeconds ?? null)}
-          subtitle="Last night"
-          color="#5856D6"
-        />
-        <MetricCard
-          icon="heartbeat"
-          label="Resting HR"
-          value={metrics?.restingHeartRate ? `${metrics.restingHeartRate} bpm` : '--'}
-          subtitle="Heart rate"
-          color="#FF3B30"
-        />
-        <MetricCard
-          icon="battery-full"
-          label="Body Battery"
-          value={metrics?.bodyBattery ? `${metrics.bodyBattery}%` : '--'}
-          subtitle="Energy level"
-          color="#34C759"
-        />
-        <MetricCard
-          icon="heart"
-          label="HRV Status"
-          value={metrics?.hrvStatus || '--'}
-          subtitle="Recovery"
-          color="#FF9500"
-        />
-      </View>
-
-      <View style={styles.hintBox}>
-        <Text style={styles.hintText}>
-          Pull down to refresh. Tap the sync button when connected to sync service.
-        </Text>
-      </View>
     </ScrollView>
   );
 }
