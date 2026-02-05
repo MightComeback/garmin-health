@@ -1,6 +1,8 @@
-import { StyleSheet, FlatList, RefreshControl, TouchableOpacity, ScrollView } from 'react-native';
+import { StyleSheet, FlatList, RefreshControl, TouchableOpacity, ScrollView, TextInput } from 'react-native';
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'expo-router';
+import { addDays, format, isAfter, isBefore, subDays } from 'date-fns';
+import { zhCN } from 'date-fns/locale';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 
 import { Text, View } from '@/components/Themed';
@@ -19,6 +21,8 @@ type Activity = {
 
 type ActivityFilter = 'all' | 'running' | 'cycling' | 'walking' | 'strength' | 'swimming' | 'other';
 
+type DateRangeFilter = 'all' | 'today' | 'week' | 'month';
+
 const FILTER_OPTIONS: { key: ActivityFilter; label: string; icon: string }[] = [
   { key: 'all', label: 'All', icon: 'list' },
   { key: 'running', label: 'Run', icon: 'running' },
@@ -27,6 +31,13 @@ const FILTER_OPTIONS: { key: ActivityFilter; label: string; icon: string }[] = [
   { key: 'strength', label: 'Strength', icon: 'dumbbell' },
   { key: 'swimming', label: 'Swim', icon: 'swimmer' },
   { key: 'other', label: 'Other', icon: 'heartbeat' },
+];
+
+const DATE_RANGE_OPTIONS: { key: DateRangeFilter; label: string }[] = [
+  { key: 'all', label: 'All time' },
+  { key: 'today', label: 'Today' },
+  { key: 'week', label: 'This week' },
+  { key: 'month', label: 'This month' },
 ];
 
 function formatDuration(seconds: number): string {
@@ -75,14 +86,59 @@ export default function WorkoutsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<ActivityFilter>('all');
+  const [activeDateRange, setActiveDateRange] = useState<DateRangeFilter>('all');
+  const [customStartDate, setCustomStartDate] = useState<string | null>(null);
+  const [customEndDate, setCustomEndDate] = useState<string | null>(null);
 
   const filteredActivities = activities.filter(act => {
+    // Activity type filter
     if (activeFilter === 'all') return true;
     if (activeFilter === 'other') {
       return !['running', 'cycling', 'walking', 'strength', 'swimming'].includes(act.type.toLowerCase());
     }
     return act.type.toLowerCase() === activeFilter;
   });
+
+  const filteredByDateRange = filteredActivities.filter(act => {
+    const activityDate = new Date(act.startTime);
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+
+    switch (activeDateRange) {
+      case 'today':
+        const today = new Date(now);
+        today.setHours(0, 0, 0, 0);
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        return isAfter(activityDate, today) && isBefore(activityDate, tomorrow);
+
+      case 'week':
+        const oneWeekAgo = new Date(now);
+        oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+        return isAfter(activityDate, oneWeekAgo);
+
+      case 'month':
+        const oneMonthAgo = new Date(now);
+        oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+        return isAfter(activityDate, oneMonthAgo);
+
+      case 'all':
+      default:
+        return true;
+    }
+  });
+
+  const dateFilteredActivities = customStartDate || customEndDate
+    ? filteredByDateRange.filter(act => {
+        const activityDate = new Date(act.startTime);
+        const startDate = customStartDate ? new Date(customStartDate) : undefined;
+        const endDate = customEndDate ? new Date(customEndDate) : undefined;
+
+        if (startDate && isBefore(activityDate, startDate)) return false;
+        if (endDate && isAfter(activityDate, endDate)) return false;
+        return true;
+      })
+    : filteredByDateRange;
 
   const fetchActivities = useCallback(async () => {
     try {
@@ -126,7 +182,7 @@ export default function WorkoutsScreen() {
       <View style={styles.header}>
         <Text style={styles.title}>Workouts</Text>
         <Text style={styles.subtitle}>
-          {filteredActivities.length} of {activities.length} activities
+          {dateFilteredActivities.length} of {activities.length} activities
         </Text>
       </View>
 
@@ -154,6 +210,29 @@ export default function WorkoutsScreen() {
         ))}
       </ScrollView>
 
+      <ScrollView 
+        horizontal 
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.dateFilterBar}
+      >
+        {DATE_RANGE_OPTIONS.map(option => (
+          <TouchableOpacity
+            key={option.key}
+            style={[styles.dateFilterChip, activeDateRange === option.key && styles.dateFilterChipActive]}
+            onPress={() => setActiveDateRange(option.key)}
+          >
+            <Text
+              style={[
+                styles.dateFilterText,
+                activeDateRange === option.key && styles.dateFilterTextActive,
+              ]}
+            >
+              {option.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+
       {error && (
         <View style={styles.errorBox}>
           <Text style={styles.errorText}>{error}</Text>
@@ -161,7 +240,7 @@ export default function WorkoutsScreen() {
       )}
 
       <FlatList
-        data={filteredActivities}
+        data={dateFilteredActivities}
         renderItem={renderItem}
         keyExtractor={(item) => item.id}
         refreshControl={
@@ -229,6 +308,30 @@ const styles = StyleSheet.create({
     color: '#007AFF',
   },
   filterTextActive: {
+    color: '#fff',
+  },
+  dateFilterBar: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    gap: 8,
+  },
+  dateFilterChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: '#00000008',
+    minWidth: 70,
+    alignItems: 'center',
+  },
+  dateFilterChipActive: {
+    backgroundColor: '#007AFF',
+  },
+  dateFilterText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#007AFF',
+  },
+  dateFilterTextActive: {
     color: '#fff',
   },
   list: {
