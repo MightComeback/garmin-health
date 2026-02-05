@@ -1,10 +1,9 @@
-import { StyleSheet, ScrollView, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { StyleSheet, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 
 import { Text, View } from '@/components/Themed';
-import { clearSyncUrlCache } from '@/lib/syncConfig';
 import { Linking } from "react-native";
 
 const DEFAULT_SYNC_URL = 'http://127.0.0.1:17890';
@@ -19,6 +18,12 @@ export default function SettingsScreen() {
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [serviceInfo, setServiceInfo] = useState<{ garminConfigured: boolean; garminAuthenticated: boolean } | null>(null);
   const [garminAuthenticated, setGarminAuthenticated] = useState<boolean | null>(null);
+
+  // Login form state
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
 
   useEffect(() => {
     loadSettings();
@@ -91,40 +96,69 @@ export default function SettingsScreen() {
     }
   };
 
-  const getGarminAuthUrl = async (syncUrl: string): Promise<string> => {
-    const state = 'garmin_health_' + Date.now();
-    const params = new URLSearchParams({
-      response_type: 'code',
-      client_id: '3541974',
-      scope: 'activity:read-all+activity:read-write+digital_wellness:read-all+social:read',
-      redirect_uri: 'https://connect.garmin.com/modern',
-      state: state,
-    });
-    return 'https://sso.garmin.com/cssls/oauth/authorization?' + params.toString();
-  };
+  const handleLogin = async () => {
+    if (!email || !password) {
+      setLoginError('Please enter both email and password');
+      return;
+    }
 
-  const handleGarminConnect = async (syncUrl: string) => {
+    setIsLoggingIn(true);
+    setLoginError(null);
+
     try {
-      const authUrl = await getGarminAuthUrl(syncUrl);
-      Linking.openURL(authUrl);
+      const res = await fetch(`${syncUrl}/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await res.json();
+
+      if (data.ok) {
+        setGarminAuthenticated(true);
+        setLoginError(null);
+        Alert.alert('Success', 'You are now logged in to Garmin Connect');
+        // Update connection status
+        setServiceInfo({
+          garminConfigured: true,
+          garminAuthenticated: true,
+        });
+        setConnectionStatus('connected');
+      } else {
+        setGarminAuthenticated(false);
+        setLoginError(data.error || 'Authentication failed');
+        Alert.alert('Login Failed', data.error || 'Authentication failed');
+      }
     } catch (err) {
-      console.error('Failed to open Garmin auth URL:', err);
-      alert('Failed to open authorization URL');
+      setLoginError('Unable to connect to sync service');
+      setConnectionStatus('error');
+      console.error('Login error:', err);
+      Alert.alert('Connection Error', 'Unable to connect to sync service');
+    } finally {
+      setIsLoggingIn(false);
     }
   };
 
-  const handleLogout = async (syncUrl: string) => {
+  const handleLogout = async () => {
     try {
-      const res = await fetch(`${syncUrl}/auth/logout`);
+      const res = await fetch(`${syncUrl}/auth/logout`, {
+        method: 'POST',
+      });
+
       if (res.ok) {
-        alert('Logged out successfully');
         setGarminAuthenticated(false);
+        setServiceInfo(null);
+        setConnectionStatus('idle');
+        setConnectionError(null);
+        Alert.alert('Success', 'Logged out successfully');
       } else {
-        alert('Failed to logout');
+        Alert.alert('Error', 'Failed to logout');
       }
     } catch (err) {
       console.error('Logout error:', err);
-      alert('Logout failed');
+      Alert.alert('Error', 'Logout failed');
     }
   };
 
@@ -224,6 +258,95 @@ export default function SettingsScreen() {
       </View>
 
       <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Garmin Connect Login</Text>
+        
+        <View style={styles.loginInputGroup}>
+          <View style={styles.inputRow}>
+            <FontAwesome 
+              name="envelope" 
+              size={16} 
+              color="#007AFF" 
+              style={styles.icon}
+            />
+            <TextInput
+              style={[styles.input, styles.emailInput]}
+              placeholder="Email"
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="email-address"
+              textContentType="emailAddress"
+            />
+          </View>
+          
+          <View style={styles.inputRow}>
+            <FontAwesome 
+              name="lock" 
+              size={16} 
+              color="#007AFF" 
+              style={styles.icon}
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Password"
+              value={password}
+              onChangeText={setPassword}
+              autoCapitalize="none"
+              autoCorrect={false}
+              secureTextEntry
+              textContentType="password"
+            />
+          </View>
+
+          {loginError && (
+            <View style={styles.errorBox}>
+              <Text style={styles.errorText}>{loginError}</Text>
+            </View>
+          )}
+
+          <TouchableOpacity 
+            style={[styles.button, styles.primaryButton, isLoggingIn && styles.buttonDisabled]} 
+            onPress={handleLogin}
+            disabled={isLoggingIn}
+          >
+            {isLoggingIn ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <>
+                <FontAwesome 
+                  name="sign-in" 
+                  size={16} 
+                  color="#fff" 
+                  style={styles.buttonIcon}
+                />
+                <Text style={styles.primaryButtonText}>
+                  {garminAuthenticated ? 'Logout' : 'Login'}
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
+
+          {garminAuthenticated && (
+            <TouchableOpacity 
+              style={[styles.button, styles.secondaryButton]} 
+              onPress={handleLogout}
+            >
+              <FontAwesome 
+                name="sign-out" 
+                size={16} 
+                color="#fff" 
+                style={styles.buttonIcon}
+              />
+              <Text style={styles.secondaryButtonText}>
+                Confirm Logout
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+
+      <View style={styles.section}>
         <Text style={styles.sectionTitle}>About</Text>
         
         <View style={styles.infoRow}>
@@ -233,73 +356,13 @@ export default function SettingsScreen() {
         
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>Build</Text>
-          <Text style={styles.infoValue}>2025.02.04</Text>
+          <Text style={styles.infoValue}>2025.02.05</Text>
         </View>
         
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>Platform</Text>
           <Text style={styles.infoValue}>Expo (React Native)</Text>
         </View>
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Garmin Connect</Text>
-        
-        <Text style={styles.hint}>
-          Authenticate with Garmin to sync your health data.
-        </Text>
-
-        <TouchableOpacity 
-          style={[styles.button, styles.primaryButton]}
-          onPress={() => handleGarminConnect(syncUrl)}
-        >
-          <FontAwesome 
-            name="sign-in" 
-            size={16} 
-            color="#fff" 
-            style={styles.buttonIcon}
-          />
-          <Text style={styles.primaryButtonText}>
-            Connect with Garmin
-          </Text>
-        </TouchableOpacity>
-
-        {garminAuthenticated !== null && (
-          <View style={styles.garminStatusBox}>
-            <FontAwesome 
-              name={garminAuthenticated ? "check-circle" : "times-circle"} 
-              size={16} 
-              color={garminAuthenticated ? "#34C759" : "#FF3B30"} 
-            />
-            <View style={styles.statusTextContainer}>
-              <Text style={styles.statusText}>
-                {garminAuthenticated ? "✓ Garmin Connected" : "✗ Garmin Disconnected"}
-              </Text>
-              <Text style={styles.statusSubtext}>
-                {garminAuthenticated 
-                  ? "Your data will sync automatically" 
-                  : "Click Connect to authorize"}
-              </Text>
-            </View>
-          </View>
-        )}
-
-        {garminAuthenticated === true && (
-          <TouchableOpacity 
-            style={[styles.button, styles.secondaryButton, { backgroundColor: '#FF3B30' }]} 
-            onPress={() => handleLogout(syncUrl)}
-          >
-            <FontAwesome 
-              name="sign-out" 
-              size={16} 
-              color="#fff" 
-              style={styles.buttonIcon}
-            />
-            <Text style={styles.secondaryButtonText}>
-              Disconnect
-            </Text>
-          </TouchableOpacity>
-        )}
       </View>
 
       <View style={styles.hintBox}>
@@ -344,6 +407,21 @@ const styles = StyleSheet.create({
   inputGroup: {
     marginBottom: 16,
   },
+  loginInputGroup: {
+    marginBottom: 16,
+  },
+  inputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  icon: {
+    marginRight: 12,
+    opacity: 0.6,
+  },
+  emailInput: {
+    flex: 1,
+  },
   label: {
     fontSize: 14,
     fontWeight: '500',
@@ -384,6 +462,9 @@ const styles = StyleSheet.create({
   secondaryButton: {
     backgroundColor: '#00000010',
   },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
   buttonIcon: {
     marginRight: 8,
   },
@@ -396,6 +477,33 @@ const styles = StyleSheet.create({
     color: '#000',
     fontSize: 16,
     fontWeight: '600',
+  },
+  testButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 12,
+    borderRadius: 8,
+    backgroundColor: '#007AFF10',
+    marginTop: 8,
+  },
+  testButtonDisabled: {
+    opacity: 0.6,
+  },
+  testButtonText: {
+    color: '#007AFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  errorBox: {
+    padding: 12,
+    backgroundColor: '#FF3B3020',
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  errorText: {
+    color: '#FF3B30',
+    fontSize: 14,
   },
   infoRow: {
     flexDirection: 'row',
@@ -427,23 +535,6 @@ const styles = StyleSheet.create({
     opacity: 0.7,
     lineHeight: 18,
   },
-  testButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 12,
-    borderRadius: 8,
-    backgroundColor: '#007AFF10',
-    marginTop: 8,
-  },
-  testButtonDisabled: {
-    opacity: 0.6,
-  },
-  testButtonText: {
-    color: '#007AFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
   statusBoxSuccess: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -462,24 +553,6 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     gap: 8,
   },
-  statusBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 16,
-    padding: 12,
-    borderRadius: 8,
-    backgroundColor: '#00000008',
-  },
-  garminStatusBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 12,
-    padding: 12,
-    borderRadius: 8,
-    backgroundColor: garminAuthenticated === true ? '#00000008' : '#FF3B300D',
-    borderWidth: 1,
-    borderColor: garminAuthenticated === true ? '#00000008' : '#FF3B3020',
-  },
   statusTextContainer: {
     flex: 1,
   },
@@ -493,10 +566,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-  statusText: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
   statusTextSuccess: {
     color: '#34C759',
   },
@@ -506,41 +575,3 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
 });
-
-// Garmin OAuth flow (manual callback)
-const GARMIN_REDIRECT_URI = 'https://connect.garmin.com/modern';
-const GARMIN_CLIENT_ID = '3541974';
-
-const getGarminAuthUrl = async (syncUrl: string): Promise<string> => {
-  const state = 'garmin_health_' + Date.now();
-  const params = new URLSearchParams({
-    response_type: 'code',
-    client_id: GARMIN_CLIENT_ID,
-    scope: 'activity:read-all+activity:read-write+digital_wellness:read-all+social:read',
-    redirect_uri: GARMIN_REDIRECT_URI,
-    state: state,
-  });
-  return `https://sso.garmin.com/cssls/oauth/authorization?${params.toString()}`;
-};
-
-const handleGarminConnect = async (syncUrl: string) => {
-  try {
-    const authUrl = await getGarminAuthUrl(syncUrl);
-    // Open in default browser
-    Linking.openURL(authUrl);
-  } catch (err) {
-    console.error('Failed to open Garmin auth URL:', err);
-  }
-};
-
-const handleLogout = async (syncUrl: string) => {
-  try {
-    const res = await fetch(`${syncUrl}/auth/logout`);
-    if (res.ok) {
-      alert('Logged out successfully');
-    }
-  } catch (err) {
-    console.error('Logout error:', err);
-    alert('Failed to logout');
-  }
-};
