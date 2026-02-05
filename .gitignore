@@ -42,3 +42,7 @@ build/
 # generated native folders
 /ios
 /android
+
+# local DB
+*.sqlite
+*.sqlite-*
