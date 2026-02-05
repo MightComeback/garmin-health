@@ -5,6 +5,7 @@ import { Text, View } from '@/components/Themed';
 import { MetricCard } from '@/components/MetricCard';
 import { SyncStatus } from '@/components/SyncStatus';
 import { WeeklySummary } from '@/components/WeeklySummary';
+import { HealthScoreCard } from '@/components/HealthScoreCard';
 import { Skeleton, SkeletonList } from '@/components/Skeleton';
 import { getSyncUrl } from '@/lib/syncConfig';
 
@@ -163,6 +164,18 @@ export default function TodayScreen() {
             sleepSeconds={weeklyMetrics.sleepSeconds}
             restingHRs={weeklyMetrics.restingHRs}
           />
+
+          {metrics && (
+            <HealthScoreCard
+              metrics={{
+                steps: metrics.steps,
+                sleepSeconds: metrics.sleepSeconds,
+                hrvStatus: metrics.hrvStatus,
+                bodyBattery: metrics.bodyBattery,
+                avgStressLevel: null,
+              }}
+            />
+          )}
 
           <SyncStatus
             configured={syncStatus?.garminConfigured ?? false}
