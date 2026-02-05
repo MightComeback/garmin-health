@@ -33,11 +33,9 @@ export default function TrendsScreen() {
     try {
       setError(null);
       const syncUrl = await getSyncUrl();
-      const res = await fetch(`${syncUrl}/daily`);
+      const res = await fetch(`${syncUrl}/daily?days=${timeRange}`);
       const data = await res.json();
-      // Reverse to get chronological order, then take last N days based on timeRange
-      const allMetrics = (data.items || []).slice().reverse();
-      setMetrics(allMetrics.slice(-timeRange));
+      setMetrics((data.items || []).slice().reverse());
     } catch (err) {
       setError('Unable to load trend data');
       console.error('Fetch error:', err);
