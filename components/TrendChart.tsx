@@ -31,9 +31,17 @@ export function TrendChart({ title, data, color, unit = '', goal, style, ...rest
         {data.map((item, index) => {
           const height = Math.max(4, ((item.value - min) / range) * CHART_HEIGHT);
           const isGoalMet = goal ? item.value >= goal : false;
-          
+
           return (
             <View key={index} style={styles.barColumn}>
+              {goal && (
+                <View
+                  style={[
+                    styles.goalLine,
+                    { bottom: ((goal - min) / range) * CHART_HEIGHT }
+                  ]}
+                />
+              )}
               <View
                 style={[
                   styles.bar,
@@ -79,6 +87,12 @@ const styles = StyleSheet.create({
   barColumn: {
     alignItems: 'center',
     justifyContent: 'flex-end',
+  },
+  goalLine: {
+    position: 'absolute',
+    width: 2,
+    backgroundColor: color,
+    borderRadius: 1,
   },
   bar: {
     borderRadius: 2,
