@@ -20,7 +20,7 @@ function getMetricColor(label: string): string {
 describe('MetricCard logic', () => {
   describe('formatMetricValue', () => {
     it('returns -- for null', () => {
-      expect(formatMetricValue(null)).toBe('--');
+      expect(formatMetricValue(null as any)).toBe('--');
     });
 
     it('returns -- for undefined', () => {
