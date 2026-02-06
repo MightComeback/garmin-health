@@ -54,6 +54,7 @@ memory/
 Obsidian/
 obsidian-vault/
 tmp/
+.cache/
 stdout
 *.log
 *.bak-*
