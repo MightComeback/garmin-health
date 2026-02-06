@@ -46,3 +46,21 @@ build/
 # local DB
 *.sqlite
 *.sqlite-*
+
+# OpenClaw / local assistant workspace
+.clawdbot/
+.secrets/
+memory/
+Obsidian/
+obsidian-vault/
+tmp/
+stdout
+*.log
+*.bak-*
+.commit_url
+last_commit_url.txt
+linear_*.json
+.issue_*.json
+mutation.json
+query.json
+candidates.json
