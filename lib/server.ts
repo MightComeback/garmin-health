@@ -5,13 +5,14 @@ import { existsSync, writeFileSync, readFileSync } from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import sqlite3 from 'sqlite3';
 import { garminService, Activity, WellnessData } from './garminService';
+import { transcribeBase64WithWhisperCpp } from './whispercpp';
 import { randomUUID } from 'crypto';
 
 const app = express();
 const server = createServer(app);
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
 
 const PORT = 17890;
 const SYNC_URL_KEY = '@garmin_sync_url';
@@ -90,6 +91,34 @@ app.get('/health', (req, res) => {
       authenticated: garminService.isAuthenticated(),
     });
   });
+});
+
+// Whisper transcription (whisper.cpp)
+app.post('/transcribe', async (req, res) => {
+  try {
+    const { audioBase64, ext, language, threads, modelPath } = req.body || {};
+
+    if (!audioBase64 || typeof audioBase64 !== 'string') {
+      return res.status(400).json({ ok: false, error: 'audioBase64 (base64 string) required' });
+    }
+
+    const cleaned = audioBase64.includes('base64,')
+      ? audioBase64.slice(audioBase64.indexOf('base64,') + 'base64,'.length)
+      : audioBase64;
+
+    const result = await transcribeBase64WithWhisperCpp({
+      audioBase64: cleaned,
+      ext,
+      language,
+      threads: typeof threads === 'number' ? threads : undefined,
+      modelPath,
+    });
+
+    res.json({ ok: true, text: result.text });
+  } catch (error) {
+    console.error('Transcribe error:', error);
+    res.status(500).json({ ok: false, error: error instanceof Error ? error.message : 'Transcription failed' });
+  }
 });
 
 // Garmin Connect authorization
