@@ -54,3 +54,38 @@ The app connects to `http://127.0.0.1:17890` by default (sync service port).
 ## Development
 
 All source is in `app/` using the Expo Router file-based routing convention.
+
+## Whisper.cpp (local transcription)
+
+This repo includes a small integration layer to run **whisper.cpp** locally (for speech-to-text).
+
+### 1) Install/build whisper.cpp + download a model
+
+```bash
+bash scripts/whispercpp/setup.sh base.en
+```
+
+This clones and builds whisper.cpp into `./.cache/whispercpp/repo` and downloads the model into `./.cache/whispercpp/repo/models/`.
+
+### 2) Run the local API server
+
+```bash
+bun run dev
+```
+
+### 3) Transcribe
+
+`POST /transcribe` expects JSON:
+
+```json
+{
+  "audioBase64": "...",
+  "ext": "wav",
+  "language": "en",
+  "threads": 4
+}
+```
+
+Notes:
+- Best results: provide a **16kHz mono WAV**. If you send another format, the server will try to convert it via `ffmpeg`.
+- You can override paths with `WHISPERCPP_BIN` and `WHISPERCPP_MODEL`.
