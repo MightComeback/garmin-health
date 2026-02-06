@@ -2,6 +2,7 @@ import { StyleSheet, ScrollView, RefreshControl, View } from 'react-native';
 import { useState, useEffect, useCallback } from 'react';
 import { Text } from '@/components/Themed';
 import { SkeletonList } from '@/components/Skeleton';
+import { TrendChart } from '@/components/TrendChart';
 import { getSyncUrl } from '@/lib/syncConfig';
 
 type TrendsData = {
@@ -24,12 +25,12 @@ type TrendsData = {
 };
 
 export default function TrendsScreen() {
-  const [trends, setTrends] = useState&lt;TrendsData | null&gt;(null);
+  const [trends, setTrends] = useState<TrendsData | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState&lt;string | null&gt;(null);
+  const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const fetchTrends = useCallback(async () =&gt; {
+  const fetchTrends = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
@@ -45,88 +46,80 @@ export default function TrendsScreen() {
     }
   }, []);
 
-  const onRefresh = useCallback(async () =&gt; {
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await fetchTrends();
     setRefreshing(false);
   }, [fetchTrends]);
 
-  useEffect(() =&gt; {
+  useEffect(() => {
     fetchTrends();
   }, [fetchTrends]);
 
   if (isLoading) {
-    return &lt;ScrollView refreshControl={&lt;RefreshControl refreshing={refreshing} onRefresh={onRefresh} /&gt;}&gt;
-      &lt;SkeletonList count={6} /&gt;
-    &lt;/ScrollView&gt;;
+    return <ScrollView refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
+      <SkeletonList count={6} />
+    </ScrollView>;
   }
 
+  const recent = trends?.recent || [];
+  const stepsData = recent.map(d => ({ day: d.day.slice(5,10), value: d.steps || 0 }));
+  const batteryData = recent.map(d => ({ day: d.day.slice(5,10), value: d.bodyBattery || 0 }));
+  const sleepData = recent.map(d => ({ day: d.day.slice(5,10), value: (d.sleepSeconds || 0) / 3600 }));
+
   return (
-    &lt;ScrollView
+    <ScrollView
       style={styles.container}
-      refreshControl={&lt;RefreshControl refreshing={refreshing} onRefresh={onRefresh} /&gt;}
-    &gt;
-      &lt;View style={styles.header}&gt;
-        &lt;Text style={styles.title}&gt;Trends&lt;/Text&gt;
-        &lt;Text style={styles.subtitle}&gt;30-Day Health Overview&lt;/Text&gt;
-      &lt;/View&gt;
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+    >
+      <View style={styles.header}>
+        <Text style={styles.title}>Trends</Text>
+        <Text style={styles.subtitle}>30-Day Health Overview</Text>
+      </View>
 
-      {error &amp;&amp; (
-        &lt;View style={styles.errorBox}&gt;
-          &lt;Text style={styles.errorText}&gt;{error}&lt;/Text&gt;
-        &lt;/View&gt;
+      {error && (
+        <View style={styles.errorBox}>
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
       )}
 
-      {trends?.trend &amp;&amp; (
-        &lt;&gt;
-          &lt;View style={styles.section}&gt;
-            &lt;Text style={styles.sectionTitle}&gt;Average Steps&lt;/Text&gt;
-            &lt;Text style={styles.metricValue}&gt;
+      {trends?.trend && (
+        <>
+          <View style={styles.metricCard}>
+            <Text style={styles.sectionTitle}>Average Steps</Text>
+            <Text style={styles.metricValue}>
               {Math.round(trends.trend.avgSteps).toLocaleString()}
-            &lt;/Text&gt;
-          &lt;/View&gt;
+            </Text>
+          </View>
 
-          &lt;View style={styles.section}&gt;
-            &lt;Text style={styles.sectionTitle}&gt;Average Stress&lt;/Text&gt;
-            &lt;Text style={styles.metricValue}&gt;
-              {trends.trend.stress?.toFixed(1) || '--'}
-            &lt;/Text&gt;
-          &lt;/View&gt;
+          <TrendChart title="Steps" data={stepsData} color="#007AFF" goal={10000} unit=" steps" />
+          <TrendChart title="Body Battery" data={batteryData} color="#34C759" goal={70} unit="%" />
+          <TrendChart title="Sleep Hours" data={sleepData} color="#5856D6" goal={7} unit="h" />
 
-          &lt;View style={styles.section}&gt;
-            &lt;Text style={styles.sectionTitle}&gt;Sleep Quality (Avg)&lt;/Text&gt;
-            &lt;Text style={styles.metricValue}&gt;
-              {trends.trend.sleep
-                ?.reduce((sum, s) =&gt; sum + (s.quality === 'excellent' ? 4 : s.quality === 'good' ? 3 : s.quality === 'fair' ? 2 : 1), 0) /
-                trends.trend.sleep.length || 0 | 0}
-              /4
-            &lt;/Text&gt;
-          &lt;/View&gt;
-
-          &lt;View style={styles.recentList}&gt;
-            &lt;Text style={styles.sectionTitle}&gt;Recent Days&lt;/Text&gt;
-            {trends.recent.slice(0, 7).map((day, i) =&gt; (
-              &lt;View key={i} style={styles.dayRow}&gt;
-                &lt;Text style={styles.dayLabel}&gt;{day.day.slice(5)}&lt;/Text&gt;
-                &lt;Text style={styles.daySteps}&gt;
+          <View style={styles.recentList}>
+            <Text style={styles.sectionTitle}>Recent Days</Text>
+            {recent.slice(0, 7).map((day, i) => (
+              <View key={i} style={styles.dayRow}>
+                <Text style={styles.dayLabel}>{day.day.slice(5)}</Text>
+                <Text style={styles.daySteps}>
                   {day.steps?.toLocaleString() || '--'} steps
-                &lt;/Text&gt;
-                &lt;Text style={styles.dayBattery}&gt;
+                </Text>
+                <Text style={styles.dayBattery}>
                   {day.bodyBattery || '--'}%
-                &lt;/Text&gt;
-              &lt;/View&gt;
+                </Text>
+              </View>
             ))}
-          &lt;/View&gt;
-        &lt;/&gt;
+          </View>
+        </>
       )}
 
-      {(!trends || !trends.trend) &amp;&amp; !error &amp;&amp; (
-        &lt;View style={styles.emptyState}&gt;
-          &lt;Text style={styles.emptyText}&gt;No trends data yet&lt;/Text&gt;
-          &lt;Text style={styles.emptySubtext}&gt;Sync more days to see trends&lt;/Text&gt;
-        &lt;/View&gt;
+      {(!trends || !trends.trend) && !error && (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyText}>No trends data yet</Text>
+          <Text style={styles.emptySubtext}>Sync more days to see trends</Text>
+        </View>
       )}
-    &lt;/ScrollView&gt;
+    </ScrollView>
   );
 }
 
@@ -168,6 +161,17 @@ const styles = StyleSheet.create({
     fontSize: 32,
     fontWeight: 'bold',
     color: '#007AFF',
+  },
+  metricCard: {
+    padding: 20,
+    margin: 16,
+    backgroundColor: 'white',
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
   },
   recentList: {
     padding: 16,
