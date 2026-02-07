@@ -1,55 +1,11 @@
-import React from 'react';
-import FontAwesome from '@expo/vector-icons/FontAwesome';
-import { Tabs } from 'expo-router';
-
-import Colors from '@/constants/Colors';
-import { useColorScheme } from '@/components/useColorScheme';
-import { useClientOnlyValue } from '@/components/useClientOnlyValue';
-
-function TabBarIcon(props: {
-  name: React.ComponentProps<typeof FontAwesome>['name'];
-  color: string;
-}) {
-  return <FontAwesome size={24} style={{ marginBottom: -3 }} {...props} />;
-}
+import { Tabs } from 'expo-router/tabs';
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
-
   return (
-    <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
-        headerShown: useClientOnlyValue(false, true),
-      }}>
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Today',
-          tabBarIcon: ({ color }) => <TabBarIcon name="home" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="workouts"
-        options={{
-          title: 'Workouts',
-          tabBarIcon: ({ color }) => <TabBarIcon name="heartbeat" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="trends"
-        options={{
-          title: 'Trends',
-          tabBarIcon: ({ color }) => <TabBarIcon name="line-chart" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="settings"
-        options={{
-          title: 'Settings',
-          tabBarIcon: ({ color }) => <TabBarIcon name="cog" color={color} />,
-        }}
-      />
+    <Tabs>
+      <Tabs.Screen name="index" options={{ title: 'Today' }} />
+      <Tabs.Screen name="workouts" options={{ title: 'Workouts' }} />
+      <Tabs.Screen name="trends" options={{ title: 'Trends' }} />
     </Tabs>
   );
 }
