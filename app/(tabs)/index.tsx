@@ -6,7 +6,7 @@ export default function Today() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('http://localhost:3000/wellness/today')
+    const today = new Date().toISOString().split('T')[0];\n    fetch(`http://127.0.0.1:17890/wellness/${today}`)
       .then(res => res.json())
       .then(setData)
       .catch(console.error)

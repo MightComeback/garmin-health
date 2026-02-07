@@ -6,7 +6,7 @@ export default function Workouts() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('http://localhost:3000/workouts')
+    fetch('http://127.0.0.1:17890/activities')
       .then(res => res.json())
       .then(setData)
       .catch(console.error)

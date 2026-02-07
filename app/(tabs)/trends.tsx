@@ -6,7 +6,7 @@ export default function Trends() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('http://localhost:3000/trends')
+    fetch('http://127.0.0.1:17890/trends')
       .then(res => res.json())
       .then(setData)
       .catch(console.error)
