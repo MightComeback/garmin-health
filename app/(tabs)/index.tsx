@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, ActivityIndicator, StyleSheet } from 'react-native';
+import { fetchSyncJson } from '@/lib/syncApi';
 
 interface WellnessData {
   ok: boolean;
@@ -21,15 +22,31 @@ export default function Today() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const today = new Date().toISOString().split('T')[0];
-    fetch(`http://127.0.0.1:17890/wellness/${today}`)
-      .then(res => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.json();
-      })
-      .then(setData)
-      .catch(err => setError(err.message))
-      .finally(() => setLoading(false));
+    let isActive = true;
+    const load = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const today = new Date().toISOString().split('T')[0];
+        const response = await fetchSyncJson<WellnessData>(`/wellness/${today}`);
+        if (isActive) {
+          setData(response);
+        }
+      } catch (err) {
+        if (!isActive) return;
+        if (err instanceof Error) {
+          setError(err.message);
+        } else {
+          setError('Unable to load today data');
+        }
+      } finally {
+        if (isActive) setLoading(false);
+      }
+    };
+    load();
+    return () => {
+      isActive = false;
+    };
   }, []);
 
   if (loading) {
